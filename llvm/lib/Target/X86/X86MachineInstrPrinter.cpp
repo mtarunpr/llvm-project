@@ -29,12 +29,6 @@ char X86MachineInstrPrinter::ID = 0;
 
 bool X86MachineInstrPrinter::runOnMachineFunction(MachineFunction &MF) {
   const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
-  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
-
-  // Create constants and registers
-  unsigned int RAX = TRI->getEncodingValue(X86::RAX);
-  unsigned int XMM0 = TRI->getEncodingValue(X86::XMM0);
-  unsigned int XMM1 = TRI->getEncodingValue(X86::XMM1);
 
   for (auto &MBB : MF) {
     outs() << "Basic block: " << MBB << "\n";
@@ -43,26 +37,21 @@ bool X86MachineInstrPrinter::runOnMachineFunction(MachineFunction &MF) {
       if (MI.isBranch()) {
 
         // Insert movq $42, %rax
-        // Insert movq $42, %rax
         // TODO: Change 42 to actual index of basic block
         outs() << "Machine instruction: " << MI << "\n";
-        BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::NOOP));
+        BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::MOV64ri), X86::RAX).addImm(42);
 
-        // // Insert movq %rax, %xmm1
-        // BuildMI(MBB, MBB.end(), DebugLoc(),
-        // TII->get(X86::MOV64rr)).addReg(RAX).addReg(XMM1);
+        // Insert movq %rax, %xmm1
+        BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::MOV64rr), X86::XMM1).addReg(X86::RAX);
 
-        // // Insert aesenc %xmm0, %xmm1
-        // BuildMI(MBB, MBB.end(), DebugLoc(),
-        // TII->get(X86::AESENCrr)).addReg(XMM0).addReg(XMM1);
+        // Insert aesenc %xmm1, %xmm2
+        // BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::AESENCrr)).addReg(X86::XMM1).addReg(X86::XMM2);
 
-        // // Insert movd %xmm1, %eax
-        // BuildMI(MBB, MBB.end(), DebugLoc(),
-        // TII->get(X86::MOV64rr)).addReg(XMM1).addReg(RAX);
+        // Insert movd %xmm1, %eax
+        BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::MOV64rr), X86::RAX).addReg(X86::XMM1);
 
         // // Insert jmp *%rax
-        // BuildMI(MBB, MBB.end(), DebugLoc(),
-        // TII->get(X86::JMP64m)).addReg(RAX);
+        // BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::JMP64m)).addReg(RAX);
       }
     }
 
