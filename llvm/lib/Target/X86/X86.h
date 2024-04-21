@@ -82,6 +82,8 @@ FunctionPass *createX86FlagsCopyLoweringPass();
 /// Return a pass that expands DynAlloca pseudo-instructions.
 FunctionPass *createX86DynAllocaExpander();
 
+FunctionPass *createX86MachineInstrPrinter();
+
 /// Return a pass that config the tile registers.
 FunctionPass *createX86TileConfigPass();
 
@@ -199,6 +201,8 @@ void initializeX86ReturnThunksPass(PassRegistry &);
 void initializeX86SpeculativeExecutionSideEffectSuppressionPass(PassRegistry &);
 void initializeX86SpeculativeLoadHardeningPassPass(PassRegistry &);
 void initializeX86TileConfigPass(PassRegistry &);
+
+void initializeX86MachineInstrPrinterPass(PassRegistry &);
 
 namespace X86AS {
 enum : unsigned {
