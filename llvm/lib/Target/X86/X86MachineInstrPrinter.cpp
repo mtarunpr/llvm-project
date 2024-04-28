@@ -25,6 +25,44 @@ unsigned long hash(char *str) {
   return hash;
 }
 
+/**
+ * @brief Inserts hash calculation instructions before MI.
+ *
+ * @param MI Jump/call instruction before which to insert hash calculation
+ * @param MIJump Jump instruction whose target is to be replaced with *%rax
+ * @param MBB Machine basic block containing MI
+ * @param TII Target instruction info
+ */
+void insertHashInstructions(MachineInstr &MI, MachineBasicBlock &MBB,
+                            const TargetInstrInfo *TII) {
+
+  // TODO: can we directly use += instead of stream?
+  std::string MBBLabel;
+  raw_string_ostream MBBLabelOstream(MBBLabel);
+  MBBLabelOstream << MI.getOperand(0).getMBB()->getFullName()
+                  << MI.getOperand(0);
+  MBBLabelOstream.flush();
+
+  // movq $ID, %rax
+  BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::MOV64ri), X86::RAX)
+      .addImm(hash((char *)MBBLabel.c_str()));
+
+  // Concatenate MF.getName() with MI.getOperand(0)
+  outs() << "TO BE HASHED NAME: " << MBBLabel.c_str() << "\n";
+
+  // movq %rax, %xmm1
+  BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::MOV64rr), X86::XMM1)
+      .addReg(X86::RAX);
+
+  // aesenc %xmm0, %xmm1
+  BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::INLINEASM))
+      .addExternalSymbol("aesenc %xmm0, %xmm1");
+
+  // movd %xmm1, %eax
+  BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::INLINEASM))
+      .addExternalSymbol("movd %xmm1, %eax");
+}
+
 namespace {
 
 class X86MachineInstrPrinter : public MachineFunctionPass {
@@ -47,6 +85,20 @@ char X86MachineInstrPrinter::ID = 0;
 bool X86MachineInstrPrinter::runOnMachineFunction(MachineFunction &MF) {
   const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
 
+  // Do a first pass to find all basic blocks that don't end with a jump or
+  // return and insert a jump to the next basic block
+  for (auto &MBB : MF) {
+    if (!MBB.empty()) {
+      MachineInstr &MI = MBB.back();
+      if (!MI.isBranch() && !MI.isReturn()) {
+        // Insert jump to next basic block
+        MachineBasicBlock *NextMBB = &*std::next(MBB.getIterator());
+        BuildMI(MBB, MBB.end(), MI.getDebugLoc(), TII->get(X86::JMP_1))
+            .addMBB(NextMBB);
+      }
+    }
+  }
+
   for (auto &MBB : MF) {
     outs() << "Basic block: " << MBB << "\n";
 
@@ -54,106 +106,43 @@ bool X86MachineInstrPrinter::runOnMachineFunction(MachineFunction &MF) {
       if (MI.isBranch() || MI.isCall()) {
         outs() << "Machine instruction: " << MI << "\n";
 
-        std::string str;
-        raw_string_ostream rso(str);
-        rso << MI.getOperand(0).getMBB()->getFullName() << MI.getOperand(0);
-        rso.flush();
-
-        // movq $ID, %rax
-        BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::MOV64ri), X86::RAX)
-            .addImm(hash((char *)str.c_str()));
-
-        // Concatenate MF.getName() with MI.getOperand(0)
-        outs() << "TO BE HASHED NAME: " << str.c_str() << "\n";
-
-        // movq %rax, %xmm1
-        BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::MOV64rr), X86::XMM1)
-            .addReg(X86::RAX);
-
-        // Insert aesenc %xmm0, %xmm1
-        // BuildMI(MBB, &MI, MI.getDebugLoc(),
-        // TII->get(X86::AESENCrr)).addReg(X86::XMM0).addReg(X86::XMM1);
-
-        // aesenc %xmm0, %xmm1
-        BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::INLINEASM))
-            .addExternalSymbol("aesenc %xmm0, %xmm1");
-
-        // movd %xmm1, %eax
-        BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::INLINEASM))
-            .addExternalSymbol("movd %xmm1, %eax");
-        // BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::MOV32rr),
-        // X86::EAX).addReg(X86::XMM1);
-
         // Insert new instruction that does the same as MI but jumps to *%rax
         // instead of MI's target
-        // TODO: need to map from MI.getOpcode() to the correspoding jump
-        // instruction that uses register instead of immediate value
 
         if (MI.isCall()) {
+          insertHashInstructions(MI, MBB, TII);
           BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::CALL64r))
               .addReg(X86::RAX);
         } else if (MI.isConditionalBranch()) {
-          std::string str;
+          // Get the next basic block
+          MachineBasicBlock *NextMBB = &*std::next(MBB.getIterator());
 
-          switch (MI.getOperand(1).getImm()) {
-          case X86::COND_O:
-            str = "jo";
-            break;
-          case X86::COND_NO:
-            str = "jno";
-            break;
-          case X86::COND_B:
-            str = "jb";
-            break;
-          case X86::COND_AE:
-            str = "jae";
-            break;
-          case X86::COND_E:
-            str = "je";
-            break;
-          case X86::COND_NE:
-            str = "jne";
-            break;
-          case X86::COND_BE:
-            str = "jbe";
-            break;
-          case X86::COND_A:
-            str = "ja";
-            break;
-          case X86::COND_S:
-            str = "js";
-            break;
-          case X86::COND_NS:
-            str = "jns";
-            break;
-          case X86::COND_P:
-            str = "jp";
-            break;
-          case X86::COND_NP:
-            str = "jnp";
-            break;
-          case X86::COND_L:
-            str = "jl";
-            break;
-          case X86::COND_GE:
-            str = "jge";
-            break;
-          case X86::COND_LE:
-            str = "jle";
-            break;
-          case X86::COND_G:
-            str = "jg";
-            break;
+          // Create a new basic block for the JCC to jump to
+          MachineBasicBlock *NewMBB = MF.CreateMachineBasicBlock();
+          // Find the iterator pointing to the current basic block
+          MachineFunction::iterator It = MF.begin();
+          for (; It != MF.end(); ++It) {
+            if (&*It == &MBB)
+              break;
           }
+          MF.insert(++It, NewMBB);
+          MBB.addSuccessor(NewMBB);
+          NewMBB->addSuccessor(NextMBB);
 
-          str += " rax";
+          // Insert jump to the next basic block in the original (unmodified)
+          // code
+          BuildMI(MBB, MBB.end(), MI.getDebugLoc(), TII->get(X86::JMP_1))
+              .addMBB(NextMBB);
 
-          // TODO: passing str here doesn't work, may need to copy-paste BuildMI
-          // in each switch case. Additionally, jne *%rax doesn't work, so need
-          // to figure that out
-          // BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::INLINEASM))
-          //     .addExternalSymbol("jne rax");
-        } else {
+          // In NewMBB, Insert jump to the original target
+          BuildMI(*NewMBB, NewMBB->end(), MI.getDebugLoc(),
+                  TII->get(X86::JMP_1))
+              .addMBB(MI.getOperand(0).getMBB());
+
+          // Modify MI to conditionally jump to NewMBB
+          MI.getOperand(0).setMBB(NewMBB);
+        } else if (MI.isUnconditionalBranch()) {
+          insertHashInstructions(MI, MBB, TII);
           BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::JMP32r))
               .addReg(X86::EAX);
         }
