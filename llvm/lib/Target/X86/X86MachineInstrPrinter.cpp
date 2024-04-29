@@ -99,20 +99,20 @@ bool X86MachineInstrPrinter::runOnMachineFunction(MachineFunction &MF) {
     }
   }
 
+  std::vector<MachineInstr *> toRemove;
+
   for (auto &MBB : MF) {
     outs() << "Basic block: " << MBB << "\n";
 
     for (auto &MI : MBB) {
+      outs() << "Machine instruction: " << MI << "\n";
+
       if (MI.isBranch() || MI.isCall()) {
-        outs() << "Machine instruction: " << MI << "\n";
-
-        // Insert new instruction that does the same as MI but jumps to *%rax
-        // instead of MI's target
-
         if (MI.isCall()) {
           insertHashInstructions(MI, MBB, TII);
-          BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::CALL64r))
+          BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::CALL32r))
               .addReg(X86::RAX);
+          toRemove.push_back(&MI);
         } else if (MI.isConditionalBranch()) {
           // Get the next basic block
           MachineBasicBlock *NextMBB = &*std::next(MBB.getIterator());
@@ -145,15 +145,20 @@ bool X86MachineInstrPrinter::runOnMachineFunction(MachineFunction &MF) {
           insertHashInstructions(MI, MBB, TII);
           BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::JMP32r))
               .addReg(X86::EAX);
+          toRemove.push_back(&MI);
         }
-
-        // Remove original MI
-        // MBB.erase_instr(&MI);
       }
     }
 
     outs() << "Basic block after: " << MBB << "\n";
   }
+
+  while (!toRemove.empty()) {
+    MachineInstr *MI = toRemove.back();
+    toRemove.pop_back();
+    MI->eraseFromBundle();
+  }
+
   return true;
 }
 
