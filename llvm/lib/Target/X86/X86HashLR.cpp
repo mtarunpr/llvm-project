@@ -13,9 +13,15 @@
 
 using namespace llvm;
 
-#define X86_MACHINEINSTR_PRINTER_PASS_NAME "Dummy X86 machineinstr printer pass"
+#define X86_HASHLR_PASS_NAME "X86 HashLR Pass"
 
-unsigned long hash(char *str) {
+/**
+ * @brief Hash function for strings.
+ *
+ * @param str String to hash
+ * @return Hash value
+ */
+unsigned long hash(const char *str) {
   unsigned long hash = 5381;
   int c;
 
@@ -45,9 +51,8 @@ void insertHashInstructions(MachineInstr &MI, MachineBasicBlock &MBB,
 
   // movq $ID, %r10
   BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::MOV64ri), X86::R10)
-      .addImm(hash((char *)MBBLabel.c_str()));
+      .addImm(hash(MBBLabel.c_str()));
 
-  // Concatenate MF.getName() with MI.getOperand(0)
   outs() << "TO BE HASHED NAME: " << MBBLabel.c_str() << "\n";
 
   // movq %r10, %xmm1
@@ -65,24 +70,24 @@ void insertHashInstructions(MachineInstr &MI, MachineBasicBlock &MBB,
 
 namespace {
 
-class X86MachineInstrPrinter : public MachineFunctionPass {
+class X86HashLR : public MachineFunctionPass {
 public:
   static char ID;
 
-  X86MachineInstrPrinter() : MachineFunctionPass(ID) {
-    initializeX86MachineInstrPrinterPass(*PassRegistry::getPassRegistry());
+  X86HashLR() : MachineFunctionPass(ID) {
+    initializeX86HashLRPass(*PassRegistry::getPassRegistry());
   }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 
   StringRef getPassName() const override {
-    return X86_MACHINEINSTR_PRINTER_PASS_NAME;
+    return X86_HASHLR_PASS_NAME;
   }
 };
 
-char X86MachineInstrPrinter::ID = 0;
+char X86HashLR::ID = 0;
 
-bool X86MachineInstrPrinter::runOnMachineFunction(MachineFunction &MF) {
+bool X86HashLR::runOnMachineFunction(MachineFunction &MF) {
   const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
 
   // Do a first pass to find all basic blocks that don't end with a jump or
@@ -164,12 +169,12 @@ bool X86MachineInstrPrinter::runOnMachineFunction(MachineFunction &MF) {
 
 } // end of anonymous namespace
 
-INITIALIZE_PASS(X86MachineInstrPrinter, "x86-machineinstr-printer",
-                X86_MACHINEINSTR_PRINTER_PASS_NAME,
+INITIALIZE_PASS(X86HashLR, "x86-hashlr",
+                X86_HASHLR_PASS_NAME,
                 false, // is CFG only?
                 false  // is analysis?
 )
 
-FunctionPass *llvm::createX86MachineInstrPrinter() {
-  return new X86MachineInstrPrinter();
+FunctionPass *llvm::createX86HashLR() {
+  return new X86HashLR();
 }

@@ -105,7 +105,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86Target() {
   initializeX86FixupInstTuningPassPass(PR);
   initializeX86FixupVectorConstantsPassPass(PR);
 
-  initializeX86MachineInstrPrinterPass(PR);
+  initializeX86HashLRPass(PR);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -538,7 +538,7 @@ void X86PassConfig::addPreRegAlloc() {
   addPass(createX86SpeculativeLoadHardeningPass());
   addPass(createX86FlagsCopyLoweringPass());
   addPass(createX86DynAllocaExpander());
-  addPass(createX86MachineInstrPrinter());
+  addPass(createX86HashLR());
 
 
   if (getOptLevel() != CodeGenOptLevel::None)

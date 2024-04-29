@@ -47,7 +47,7 @@ set(sources
   X86FixupVectorConstants.cpp
   X86AvoidStoreForwardingBlocks.cpp
   X86DynAllocaExpander.cpp
-  X86MachineInstrPrinter.cpp
+  X86HashLR.cpp
   X86FixupSetCC.cpp
   X86FlagsCopyLowering.cpp
   X86FloatingPoint.cpp
