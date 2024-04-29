@@ -29,7 +29,7 @@ unsigned long hash(char *str) {
  * @brief Inserts hash calculation instructions before MI.
  *
  * @param MI Jump/call instruction before which to insert hash calculation
- * @param MIJump Jump instruction whose target is to be replaced with *%rax
+ * @param MIJump Jump instruction whose target is to be replaced with *%r10
  * @param MBB Machine basic block containing MI
  * @param TII Target instruction info
  */
@@ -43,20 +43,20 @@ void insertHashInstructions(MachineInstr &MI, MachineBasicBlock &MBB,
                   << MI.getOperand(0);
   MBBLabelOstream.flush();
 
-  // movq $ID, %rax
-  BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::MOV64ri), X86::RAX)
+  // movq $ID, %r10
+  BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::MOV64ri), X86::R10)
       .addImm(hash((char *)MBBLabel.c_str()));
 
   // Concatenate MF.getName() with MI.getOperand(0)
   outs() << "TO BE HASHED NAME: " << MBBLabel.c_str() << "\n";
 
-  // movq %rax, %xmm1
+  // movq %r10, %xmm1
   BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::MOV64rr), X86::XMM1)
-      .addReg(X86::RAX);
+      .addReg(X86::R10);
 
-  // aesenc %xmm0, %xmm1
+  // aesenc %xmm7, %xmm1
   BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::INLINEASM))
-      .addExternalSymbol("aesenc %xmm0, %xmm1");
+      .addExternalSymbol("aesenc %xmm7, %xmm1");
 
   // movd %xmm1, %eax
   BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::INLINEASM))
@@ -111,7 +111,7 @@ bool X86MachineInstrPrinter::runOnMachineFunction(MachineFunction &MF) {
         if (MI.isCall()) {
           insertHashInstructions(MI, MBB, TII);
           BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::CALL32r))
-              .addReg(X86::RAX);
+              .addReg(X86::R10);
           toRemove.push_back(&MI);
         } else if (MI.isConditionalBranch()) {
           // Get the next basic block
