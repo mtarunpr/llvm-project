@@ -48,6 +48,13 @@ void insertHashInstructions(MachineInstr &MI, MachineBasicBlock &MBB,
                   << MI.getOperand(0);
   MBBLabelOstream.flush();
 
+  // If the label contains a '@', it's a function name and we
+  // want to hash the name of the first basic block in it instead
+  if (MBBLabel.find('@') != std::string::npos) {
+    MBBLabel = MBBLabel.substr(1);
+    MBBLabel.append(":%bb.0");
+  }
+
   // movq $ID, %r10
   BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::MOV64ri), X86::R10)
       .addImm(hash(MBBLabel.c_str()));
