@@ -172,9 +172,8 @@ bool X86HashLR::runOnMachineFunction(MachineFunction &MF) {
     // Write to ostream
     std::string MBBLabel;
     raw_string_ostream MBBLabelOstream(MBBLabel);
-    MBBLabelOstream << MF.getName() << ":";
+    MBBLabelOstream << MBB.getFullName();
     MBB.printAsOperand(MBBLabelOstream, false);
-    MBBLabelOstream << "\n";
     MBBLabelOstream.flush();
 
     // If label is main:%bb.0, also output "main"
