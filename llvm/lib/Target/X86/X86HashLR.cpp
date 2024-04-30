@@ -70,7 +70,7 @@ void insertHashInstructions(MachineInstr &MI, MachineBasicBlock &MBB,
 
   // movd %xmm1, %r10
   BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::INLINEASM))
-      .addExternalSymbol("movd %xmm1, %r10");
+      .addExternalSymbol("movd %xmm1, %r10d");
 }
 
 namespace {
