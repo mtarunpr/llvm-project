@@ -63,9 +63,9 @@ void insertHashInstructions(MachineInstr &MI, MachineBasicBlock &MBB,
   BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::INLINEASM))
       .addExternalSymbol("aesenc %xmm7, %xmm1");
 
-  // movd %xmm1, %eax
+  // movd %xmm1, %r10
   BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::INLINEASM))
-      .addExternalSymbol("movd %xmm1, %eax");
+      .addExternalSymbol("movd %xmm1, %r10");
 }
 
 namespace {
@@ -115,7 +115,7 @@ bool X86HashLR::runOnMachineFunction(MachineFunction &MF) {
       if (MI.isBranch() || MI.isCall()) {
         if (MI.isCall()) {
           insertHashInstructions(MI, MBB, TII);
-          BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::CALL32r))
+          BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::CALL64r))
               .addReg(X86::R10);
           toRemove.push_back(&MI);
         } else if (MI.isConditionalBranch()) {
@@ -148,8 +148,8 @@ bool X86HashLR::runOnMachineFunction(MachineFunction &MF) {
           MI.getOperand(0).setMBB(NewMBB);
         } else if (MI.isUnconditionalBranch()) {
           insertHashInstructions(MI, MBB, TII);
-          BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::JMP32r))
-              .addReg(X86::EAX);
+          BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::JMP64r))
+              .addReg(X86::R10);
           toRemove.push_back(&MI);
         }
       }
