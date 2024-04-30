@@ -10,6 +10,7 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
+#include <set>
 
 using namespace llvm;
 
@@ -59,8 +60,6 @@ void insertHashInstructions(MachineInstr &MI, MachineBasicBlock &MBB,
   BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::MOV64ri), X86::R10)
       .addImm(hash(MBBLabel.c_str()));
 
-  outs() << "TO BE HASHED NAME: " << MBBLabel.c_str() << "\n";
-
   // movq %r10, %xmm1
   BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(X86::MOV64rr), X86::XMM1)
       .addReg(X86::R10);
@@ -86,9 +85,7 @@ public:
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 
-  StringRef getPassName() const override {
-    return X86_HASHLR_PASS_NAME;
-  }
+  StringRef getPassName() const override { return X86_HASHLR_PASS_NAME; }
 };
 
 char X86HashLR::ID = 0;
@@ -111,13 +108,10 @@ bool X86HashLR::runOnMachineFunction(MachineFunction &MF) {
   }
 
   std::vector<MachineInstr *> toRemove;
+  std::set<MachineBasicBlock *> leaveAsContiguous;
 
   for (auto &MBB : MF) {
-    outs() << "Basic block: " << MBB << "\n";
-
     for (auto &MI : MBB) {
-      outs() << "Machine instruction: " << MI << "\n";
-
       if (MI.isBranch() || MI.isCall()) {
         if (MI.isCall()) {
           insertHashInstructions(MI, MBB, TII);
@@ -139,6 +133,7 @@ bool X86HashLR::runOnMachineFunction(MachineFunction &MF) {
           MF.insert(++It, NewMBB);
           MBB.addSuccessor(NewMBB);
           NewMBB->addSuccessor(NextMBB);
+          leaveAsContiguous.insert(NewMBB);
 
           // Insert jump to the next basic block in the original (unmodified)
           // code
@@ -160,8 +155,6 @@ bool X86HashLR::runOnMachineFunction(MachineFunction &MF) {
         }
       }
     }
-
-    outs() << "Basic block after: " << MBB << "\n";
   }
 
   while (!toRemove.empty()) {
@@ -170,17 +163,36 @@ bool X86HashLR::runOnMachineFunction(MachineFunction &MF) {
     MI->eraseFromBundle();
   }
 
+  // Do a final pass through all basic blocks to print their identifiers
+  for (auto &MBB : MF) {
+    if (leaveAsContiguous.find(&MBB) != leaveAsContiguous.end()) {
+      continue;
+    }
+
+    // Write to ostream
+    std::string MBBLabel;
+    raw_string_ostream MBBLabelOstream(MBBLabel);
+    MBBLabelOstream << MF.getName() << ":";
+    MBB.printAsOperand(MBBLabelOstream, false);
+    MBBLabelOstream << "\n";
+    MBBLabelOstream.flush();
+
+    // If label is main:%bb.0, also output "main"
+    if (MBBLabel.find("main:%bb.0") != std::string::npos) {
+      outs() << "main=";
+    }
+
+    outs() << hash(MBBLabel.c_str()) << "\n";
+  }
+
   return true;
 }
 
 } // end of anonymous namespace
 
-INITIALIZE_PASS(X86HashLR, "x86-hashlr",
-                X86_HASHLR_PASS_NAME,
+INITIALIZE_PASS(X86HashLR, "x86-hashlr", X86_HASHLR_PASS_NAME,
                 false, // is CFG only?
                 false  // is analysis?
 )
 
-FunctionPass *llvm::createX86HashLR() {
-  return new X86HashLR();
-}
+FunctionPass *llvm::createX86HashLR() { return new X86HashLR(); }
