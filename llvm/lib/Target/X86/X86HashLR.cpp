@@ -42,7 +42,6 @@ unsigned long hash(const char *str) {
 void insertHashInstructions(MachineInstr &MI, MachineBasicBlock &MBB,
                             const TargetInstrInfo *TII) {
 
-  // TODO: can we directly use += instead of stream?
   std::string MBBLabel;
   raw_string_ostream MBBLabelOstream(MBBLabel);
   MBBLabelOstream << MI.getOperand(0).getMBB()->getFullName()
